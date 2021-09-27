@@ -27,6 +27,10 @@ import numpy as np
 from scipy.sparse.linalg import eigs
 from joblib import Parallel, delayed, dump, load
 
+
+#ZZZ
+import math as ma
+
 # from staticKS import Orbitals
 
 # internal libs
@@ -34,6 +38,75 @@ from . import config
 from . import mathtools
 
 
+def Shootsolve(v, xgrid):
+    #Defining spatial resolution -dx, N-No. of points, k-"Numerov's" k(x)- defined as a zeros array, W- k in the log scale
+    #u and y are for performing the integration
+    N = int(np.size(xgrid))
+    dx = xgrid[1] - xgrid[0] 
+    h=dx**2
+    k=v-E #ZZZ
+    W=np.zeros(N)
+    u=np.zeros(3)
+    y=np.zeros(3)
+    l=0
+    for l in range(config.lmax):
+        #(i) Searching for turning point:
+        for i in range(xgrid):
+            W[i]=-2.0*ma.exp(2.0*x[i])*(v[i]+0.5*(l+0.5)**2*ma.exp(-2.0*x[i])-E) #Defining the logarithmic k array
+            if ((k[i]*k[i-1]<0) and (ma.fabs(k[i]-k[i-1])<1.0)): #Searching for a turningpoint
+            tp=i-1
+            i=+1
+        #(ii) Forward integration        
+        a=ma.exp(-13)  #a is the leftmost grid point. From arXiv preprint - "r_0=e^-13/Z was found to be sufficient in almost all cases" pg.9
+        u[0]=ma.exp((l+0.5)*a)
+        u[1]=ma.exp((l+0.5)*(a+h))
+        i=int(2)
+        while (i<tp): #ZZZ Is it k or is it W???
+            
+            u[2]=(2.0*(1.0-5.0*h/12.0*k[i])*u[1]-(1.0+h/12.0*k[i-1])*u[0])/(1.0+h/12.0*k[i+1])
+            
+            u[0]=u[1]
+            u[1]=u[2]
+            i=+1
+        
+        y[0]=u[0]
+        y[1]=u[1]
+
+        y[2]=(2.0*(1.0-5.0*h/12.0*k[tp])*y[1]-(1.0+h/12*k[tp-1])*y[0])/(1.0+h/12*k[tp+1])
+        
+        lef=-(y[3]-y[1])/y[2]
+        
+        #(iii) Backwards integration
+        u[0]=u[1]=u[2]=0.0
+        
+        if (config.bc=="neumann"):
+            u[2]=u[1]=0 #ZZZ Const?
+        else:
+            u[2]=0
+            u[1]=a #ZZZ
+
+        i=int(np.size(xgrid)-1)
+        while (i>tp):
+            u[0]=(-(1.0+h/12.0*k[i+1])*u[2]+2.0*(1.0-5.0*h/12.0*k[i]*u[1]))/(1.0+h/12.0*k[i-1])
+
+            u[2]=u[1]
+            u[1]=u[0]
+            i=-1
+        
+        y[2]=u[1]
+        y[1]=u[0]
+
+        y[0]=(-(1.0+h/12*k[tp+1])*y[2]+2.0*(1.0=5.0*h/12.0*k[tp])*y[1])/(1.0+h/12.0*k[tp-1])
+        
+        right=(y[1]-y[3])/2.0
+
+        #Defining the "differntiability" function for the specific (E,l)
+        cont=lef+right
+        if (cont<pow(10,-4)):
+            return True
+        else
+            return False
+            
 # @writeoutput.timing
 def matrix_solve(v, xgrid):
     r"""

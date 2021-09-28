@@ -37,8 +37,40 @@ import math as ma
 from . import config
 from . import mathtools
 
+def ShootGen(V, xgrid):   #The main body of the shooting method solution. calls different functions within the Numerov.py module. Returns the eigenvalues and functions.
+    eigvals=np.zeros(config.spindims, config.lmax, config.nmax)
+    eigfuncs=np.zeros(config.spindims, comfig.lmax, config.nmax, config.grig_params["ngrid"])
+    max_Delta=pow(10,-3) #Will be optimized
+    flag=bool(False)
+    for l in range(config.lmax):
+        for n in range(config.nmax):
+            if (l>=n):
+                break
+            else:
+            #Obtain (Somehow) an initial E_r value
+                Z_r=Shootsolve(v, xgrid, l, E_r)
+                E_l=E_r
+                Delta=0.1
+                while (flag==False):
+                    E_l=E_l-Delta
+                    Z_l=Shootsolve(v, xgrid, l, E_l)
+                    if (Z_l*Z_r<=0):
+                        E_l=E_l+Delta
+                        Delta =0.5*Delta
+                        if (Delta<max_Delta): #ZZZ Check if there's user defined max_delta
+                            flag=bool(True)
+                            break
+                    else:
+                        continue
+            eigvals(0,l,n)=E_l
+            R=Shootwrite(v, xgrid, l, E)
+            while i in range(xgrid):
+                eigfuncs(0,l,n,i)=R[i]
+            n=+1
+        l=+1
+    return eigfuncs, eigvals
 
-def Shootsolve(v, xgrid):
+def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method for the P_nl. It dosn't write down anything but the value of the derivative continuation.
     #Defining spatial resolution -dx, N-No. of points, k-"Numerov's" k(x)- defined as a zeros array, W- k in the log scale
     #u and y are for performing the integration
     N = int(np.size(xgrid))
@@ -48,65 +80,109 @@ def Shootsolve(v, xgrid):
     W=np.zeros(N)
     u=np.zeros(3)
     y=np.zeros(3)
-    l=0
-    for l in range(config.lmax):
-        #(i) Searching for turning point:
-        for i in range(xgrid):
-            W[i]=-2.0*ma.exp(2.0*x[i])*(v[i]+0.5*(l+0.5)**2*ma.exp(-2.0*x[i])-E) #Defining the logarithmic k array
-            if ((k[i]*k[i-1]<0) and (ma.fabs(k[i]-k[i-1])<1.0)): #Searching for a turningpoint
-            tp=i-1
-            i=+1
-        #(ii) Forward integration        
-        a=ma.exp(-13)  #a is the leftmost grid point. From arXiv preprint - "r_0=e^-13/Z was found to be sufficient in almost all cases" pg.9
-        u[0]=ma.exp((l+0.5)*a)
-        u[1]=ma.exp((l+0.5)*(a+h))
-        i=int(2)
-        while (i<tp): #ZZZ Is it k or is it W???
+    tp=0
+
+    #(i) Searching for turning point:
+    for i in range(xgrid):
+        W[i]=-2.0*ma.exp(2.0*x[i])*(v[i]+0.5*(l+0.5)**2*ma.exp(-2.0*x[i])-E) #Defining the logarithmic k array
+        if ((tp=0) and (k[i]*k[i-1]<0) and (abs(k[i]-k[i-1])<1.0)): #Searching for a turningpoint
+            tp=int(i-1)
+        i=+1
+    #(ii) Forward integration        
+    a=config.grid_params["x0"]  #a is the leftmost grid point. 
+    u[0]=a
+    u[1]=ma.exp((l+0.5)*dx)*a
+    i=int(1)
+    while (i<tp): #
+
+        u[2]=(2.0*(1.0-5.0*h/12.0*W[i])*u[1]-(1.0+h/12.0*W[i-1])*u[0])/(1.0+h/12.0*W[i+1])
             
-            u[2]=(2.0*(1.0-5.0*h/12.0*k[i])*u[1]-(1.0+h/12.0*k[i-1])*u[0])/(1.0+h/12.0*k[i+1])
+        u[0]=u[1]
+        u[1]=u[2]
+        i=+1
+        
+    y[0]=u[0] 
+    y[1]=u[1]
+
+    y[2]=(2.0*(1.0-5.0*h/12.0*W[tp-1])*y[1]-(1.0+h/12.0*W[tp-2])*y[0])/(1.0+h/12.0*W[tp])
+        
+    lef=-(y[3]-y[1])/y[2]
+        
+    #(iii) Backwards integration
+    u[0]=u[1]=u[2]=0.0
+        
+    if (config.bc=="neumann"):
+        u[2]=u[1]=0 #ZZZ Const?
+    else:
+        u[2]=0
+        u[1]=a #ZZZ
+
+    i=int(np.size(xgrid)-1)
+    while (i>tp):
+        u[0]=(-(1.0+h/12.0*W[i+1])*u[2]+2.0*(1.0-5.0*h/12.0*W[i]*u[1]))/(1.0+h/12.0*W[i-1])
+
+        u[2]=u[1]
+        u[1]=u[0]
+        i=-1
+        
+    y[2]=u[1]
+    y[1]=u[0]
+
+    y[0]=(-(1.0+h/12*W[tp+2])*y[2]+2.0*(1.0-5.0*h/12.0*W[tp+1])*y[1])/(1.0+h/12.0*W[tp])
+        
+    right=(y[1]-y[3])/y[2]
+
+    #Defining the "differntiability" function for the specific (E,l)
+    cont=lef+right
+    return cont
             
-            u[0]=u[1]
-            u[1]=u[2]
-            i=+1
-        
-        y[0]=u[0]
-        y[1]=u[1]
+def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, writes it down and reports it. 
+    dx = xgrid[1] - xgrid[0]
+    N = int(np.size(xgrid))
+    h=dx**2
+    k=v-E #ZZZ
+    W=np.zeros(N)
+    P=np.zeros(N)
+    R=np.zeros(N)
 
-        y[2]=(2.0*(1.0-5.0*h/12.0*k[tp])*y[1]-(1.0+h/12*k[tp-1])*y[0])/(1.0+h/12*k[tp+1])
-        
-        lef=-(y[3]-y[1])/y[2]
-        
-        #(iii) Backwards integration
-        u[0]=u[1]=u[2]=0.0
-        
-        if (config.bc=="neumann"):
-            u[2]=u[1]=0 #ZZZ Const?
-        else:
-            u[2]=0
-            u[1]=a #ZZZ
+    #(i) Searching for turning point:
+    for i in range(xgrid):
+        W[i]=-2.0*ma.exp(2.0*x[i])*(v[i]+0.5*(l+0.5)**2*ma.exp(-2.0*x[i])-E) #Defining the logarithmic k array
+        if ((tp=0) and (k[i]*k[i-1]<0) and (abs(k[i]-k[i-1])<1.0)):
+            tp=int(i-1)
+        i=+1   
 
-        i=int(np.size(xgrid)-1)
-        while (i>tp):
-            u[0]=(-(1.0+h/12.0*k[i+1])*u[2]+2.0*(1.0-5.0*h/12.0*k[i]*u[1]))/(1.0+h/12.0*k[i-1])
+    #(ii) Forward integration        
+    a=config.grid_params["x0"]  #a is the leftmost grid point. 
+    P[0]=a
+    P[1]=ma.exp((l+0.5)*dx)*a
+    i=int(2)
+    while (i<tp): 
 
-            u[2]=u[1]
-            u[1]=u[0]
-            i=-1
+        P[i]=(2.0*(1.0-5.0*h/12.0*W[i-1])*P[i-1]-(1.0+h/12.0*W[i-2])*P[i-2])/(1.0+h/12.0*W[i])
+        i=+1
         
-        y[2]=u[1]
-        y[1]=u[0]
 
-        y[0]=(-(1.0+h/12*k[tp+1])*y[2]+2.0*(1.0=5.0*h/12.0*k[tp])*y[1])/(1.0+h/12.0*k[tp-1])
+    P[tp]=(2.0*(1.0-5.0*h/12.0*W[tp-1])*P[tp-1]-(1.0+h/12.0*W[tp-2])*P[tp-2])/(1.0+h/12.0*W[tp])
+    check=P[tp]
+
+    #(iii) Backwards integration
         
-        right=(y[1]-y[3])/2.0
+    if (config.bc=="neumann"):
+        P[N-1]=P[N-2]=0 #ZZZ Const?
+    else:
+        P[N-1]=0
+        P[N-2]=a #ZZZ
 
-        #Defining the "differntiability" function for the specific (E,l)
-        cont=lef+right
-        if (cont<pow(10,-4)):
-            return True
-        else
-            return False
-            
+    i=int(np.size(xgrid)-3)
+    while (i>=tp):
+        P[i]=(-(1.0+h/12.0*W[i+2])*P[i+2]+2.0*(1.0-5.0*h/12.0*W[i+1]*P[i+1]))/(1.0+h/12.0*W[i])
+        i=-1
+
+    #ZZZ Will we get function continuity?
+    return P
+
+
 # @writeoutput.timing
 def matrix_solve(v, xgrid):
     r"""

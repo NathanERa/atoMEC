@@ -30,6 +30,7 @@ from joblib import Parallel, delayed, dump, load
 
 #ZZZ
 import math as ma
+import scipy.integrate as integrate
 
 # from staticKS import Orbitals
 
@@ -42,8 +43,11 @@ def ShootGen(V, xgrid):   #The main body of the shooting method solution. calls 
     eigfuncs=np.zeros(config.spindims, comfig.lmax, config.nmax, config.grig_params["ngrid"])
     max_Delta=pow(10,-3) #Will be optimized
     flag=bool(False)
-    for l in range(config.lmax):
-        for n in range(config.nmax):
+    n=int(1)
+    l=int(0)
+"""
+    while (l<=config.lmax):
+        while (n<=config.nmax):
             if (l>=n):
                 break
             else:
@@ -66,9 +70,73 @@ def ShootGen(V, xgrid):   #The main body of the shooting method solution. calls 
             R=Shootwrite(v, xgrid, l, E)
             while i in range(xgrid):
                 eigfuncs(0,l,n,i)=R[i]
-            n=+1
-        l=+1
+ 
+        n=n+1
+        l=l+1
     return eigfuncs, eigvals
+"""
+
+def Esearch(v, xgrid)
+    guess=1.5/(config.Z)**2 #Initial 1/E guess
+    dx=xgrid[1]-xgrid[0] #Spatial resolution
+    E_max_err=10**(-5) #maximal energy error
+    h4=dx**4 
+    maxcount=1000000 #maximal number of search steps
+    st=0.2 #1/E energy step
+    eigvals=np.zeros(config.spindims, config.lmax, config.nmax)
+    n=int(1)
+    l=int(0)
+    while (l<=config.lmax):
+        while(n<=config.nmax):
+            if(n<=l):
+                break
+            else:
+                Z_l=Shootsolve(v, xgrid, l, guess)
+                E_l=guess
+                count=int(1)
+                while(count <= max_count)
+                    E_r = E_l+st
+                    Z_r = Shootsolve(v, xgrid, l, E_r)
+                    if (Z_l*Z_r < 0.0):
+                        #an Eigenvalue is found
+                        E_m=(E_l*Z_l-E_r*Z_l)/(Z_r-Z_l)
+                        Z_m=Shootsolve(v, xgrid, l, E_m)
+                        #Making the bracket smaller
+                        if (Z_m*Z_r>0): 
+                            E_r=E_m
+                            Z_r=Z_m
+                        elif (Z_m*Z_r<0):
+                            E_l=E_m
+                            Z_l=Z_m
+
+                        #Flags:
+                        if (abs(Z_r-Z_l)<h4):
+                            eigvals(0, l, n)= 2.0/(E_r+E_l)
+                        elif(abs(Z_r)<h4):
+                            eigvals(0, l, n)= 2.0/(E_r+E_l)
+                        elif(abs(Z_l)<h4): 
+                            eigvals(0, l, n)= 2.0/(E_r+E_l)
+                        elif(abs(E_r-E_l) < E_max_err):
+                            if (abs(Z_l)<ma.sqrt(dx) and abs(Z_r)<ma.sqrt(dx)):
+                                eigvals(0, l, n)= 2.0/(E_r+E_l)
+                            else:
+                                E_l=E_r
+                                Z_l=Shootsolve(v, xgrid, l, E_l)
+                                count=count+1
+                                break  #ZZZ How far out will it break???
+                        
+
+
+
+                    else:
+                        E_l=E_r
+                        Z_l=Shootsolve(v, xgrid, l, E_l)
+                        count=count+1
+                #ZZZZ
+        n=n+1
+    l=l+1
+
+
 
 def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method for the P_nl. It dosn't write down anything but the value of the derivative continuation.
     #Defining spatial resolution -dx, N-No. of points, k-"Numerov's" k(x)- defined as a zeros array, W- k in the log scale
@@ -83,103 +151,124 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
     tp=0
 
     #(i) Searching for turning point:
-    for i in range(xgrid):
-        W[i]=-2.0*ma.exp(2.0*x[i])*(v[i]+0.5*(l+0.5)**2*ma.exp(-2.0*x[i])-E) #Defining the logarithmic k array
-        if ((tp=0) and (k[i]*k[i-1]<0) and (abs(k[i]-k[i-1])<1.0)): #Searching for a turningpoint
+    i=0
+    while i<N:
+        W[i]=-2.0*ma.exp(2.0*xgrid[i])*(v[i]+0.5*(l+0.5)**2*ma.exp(-2.0*xgrid[i])-E) #Defining the logarithmic k array
+        if ((tp==0) and (k[i]*k[i-1]<0) and (abs(k[i]-k[i-1])<1.0)): #Searching for a turningpoint
             tp=int(i-1)
-        i=+1
+        i=i+1
     #(ii) Forward integration        
     a=config.grid_params["x0"]  #a is the leftmost grid point. 
-    u[0]=a
-    u[1]=ma.exp((l+0.5)*dx)*a
+    #b=xgrid[N-1]
+    u[0]=ma.exp((l+0.5)*a)
+    u[1]=ma.exp((l+0.5)*a)*(1+dx*(l+0.5))
     i=int(1)
-    while (i<tp): #
+    while (i<tp): 
 
         u[2]=(2.0*(1.0-5.0*h/12.0*W[i])*u[1]-(1.0+h/12.0*W[i-1])*u[0])/(1.0+h/12.0*W[i+1])
             
         u[0]=u[1]
         u[1]=u[2]
-        i=+1
+        i=i+1
         
     y[0]=u[0] 
     y[1]=u[1]
 
     y[2]=(2.0*(1.0-5.0*h/12.0*W[tp-1])*y[1]-(1.0+h/12.0*W[tp-2])*y[0])/(1.0+h/12.0*W[tp])
         
-    lef=-(y[3]-y[1])/y[2]
+    lef=-(y[2]-y[0])/y[1]
         
     #(iii) Backwards integration
     u[0]=u[1]=u[2]=0.0
         
     if (config.bc=="neumann"):
-        u[2]=u[1]=0 #ZZZ Const?
+        u[2]=ma.exp(-ma.sqrt(-2.0*E)*ma.exp(xgrid[N-1])+0.5*xgrid[N-1])
+        u[1]=(1-0.5*dx)*u[2]
     else:
         u[2]=0
-        u[1]=a #ZZZ
+        u[1]=a 
 
-    i=int(np.size(xgrid)-1)
+    i=int(N-2)
     while (i>tp):
         u[0]=(-(1.0+h/12.0*W[i+1])*u[2]+2.0*(1.0-5.0*h/12.0*W[i]*u[1]))/(1.0+h/12.0*W[i-1])
 
         u[2]=u[1]
         u[1]=u[0]
-        i=-1
+        i=i-1
         
     y[2]=u[1]
     y[1]=u[0]
 
     y[0]=(-(1.0+h/12*W[tp+2])*y[2]+2.0*(1.0-5.0*h/12.0*W[tp+1])*y[1])/(1.0+h/12.0*W[tp])
         
-    right=(y[1]-y[3])/y[2]
+    right=-(y[0]-y[2])/y[1]
 
     #Defining the "differntiability" function for the specific (E,l)
     cont=lef+right
     return cont
             
-def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, writes it down and reports it. 
+def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it, writes it down and reports it. 
     dx = xgrid[1] - xgrid[0]
     N = int(np.size(xgrid))
     h=dx**2
     k=v-E #ZZZ
     W=np.zeros(N)
     P=np.zeros(N)
-    R=np.zeros(N)
+    tp=int(0)
 
     #(i) Searching for turning point:
-    for i in range(xgrid):
-        W[i]=-2.0*ma.exp(2.0*x[i])*(v[i]+0.5*(l+0.5)**2*ma.exp(-2.0*x[i])-E) #Defining the logarithmic k array
-        if ((tp=0) and (k[i]*k[i-1]<0) and (abs(k[i]-k[i-1])<1.0)):
+    i=0
+    while i<=N:
+        W[i]=-2.0*ma.exp(2.0*xgrid[i])*(v[i]+0.5*(l+0.5)**2*ma.exp(-2.0*xgrid[i])-E) #Defining the logarithmic k array
+        if ((tp==0) and (k[i]*k[i-1]<0) and (abs(k[i]-k[i-1])<1.0)):
             tp=int(i-1)
-        i=+1   
+        i=i+1   
+
+    #allocating 2 arrays - one for (ii) and one for (iii):
+    P_lef=np.zeros(tp+1)
+    P_rig=np.zeros(N-tp+1)
+
 
     #(ii) Forward integration        
     a=config.grid_params["x0"]  #a is the leftmost grid point. 
-    P[0]=a
-    P[1]=ma.exp((l+0.5)*dx)*a
+    P_lef[0]=ma.exp((l+0.5)*a)
+    P_lef[1]=ma.exp((l+0.5)*a)*(1+dx*(l+0.5))
     i=int(2)
-    while (i<tp): 
+    while (i<=tp):
 
-        P[i]=(2.0*(1.0-5.0*h/12.0*W[i-1])*P[i-1]-(1.0+h/12.0*W[i-2])*P[i-2])/(1.0+h/12.0*W[i])
-        i=+1
+        P_lef[i]=(2.0*(1.0-5.0*h/12.0*W[i-1])*P_lef[i-1]-(1.0+h/12.0*W[i-2])*P_lef[i-2])/(1.0+h/12.0*W[i])
+        i=i+1
         
 
-    P[tp]=(2.0*(1.0-5.0*h/12.0*W[tp-1])*P[tp-1]-(1.0+h/12.0*W[tp-2])*P[tp-2])/(1.0+h/12.0*W[tp])
-    check=P[tp]
+    #P[tp]=(2.0*(1.0-5.0*h/12.0*W[tp-1])*P[tp-1]-(1.0+h/12.0*W[tp-2])*P[tp-2])/(1.0+h/12.0*W[tp])
+    #check=P[tp]
 
     #(iii) Backwards integration
         
     if (config.bc=="neumann"):
-        P[N-1]=P[N-2]=0 #ZZZ Const?
+        P_rig[N-tp]=ma.exp(-ma.sqrt(-2.0*E)*ma.exp(xgrid[N-1])+0.5*xgrid[N-1])
+        P[N-tp-1]=(1-0.5*dx)*P_rig[N-tp]
     else:
-        P[N-1]=0
-        P[N-2]=a #ZZZ
+        P_rig[N-tp]=0
+        P_rig[N-tp-1]=a 
 
-    i=int(np.size(xgrid)-3)
-    while (i>=tp):
-        P[i]=(-(1.0+h/12.0*W[i+2])*P[i+2]+2.0*(1.0-5.0*h/12.0*W[i+1]*P[i+1]))/(1.0+h/12.0*W[i])
-        i=-1
+    i=int(N-tp-2)
+    while (i>=0):
+        P_rig[i]=(-(1.0+h/12.0*W[i+2])*P_rig[i+2]+2.0*(1.0-5.0*h/12.0*W[i+1]*P_rig[i+1]))/(1.0+h/12.0*W[i])
+        i=i-1
+    
+    #imposing contin.
+    h_l=P_lef[tp]
+    h_r=P_rig[0]
+    P_rig=(h_l/h_r)*P_rig
 
-    #ZZZ Will we get function continuity?
+    i=int(0)
+    while (i<N):
+        if (i<=tp):
+            P[i]=P_lef[i]
+        elif (i>tp):
+            P[i]=P_rig[i-tp]
+        i=i+1
     return P
 
 
@@ -378,7 +467,7 @@ def KS_matsolve_serial(T, B, v, xgrid):
 
         # diagonalize Hamiltonian using scipy
         for i in range(np.shape(v)[0]):
-
+            
             # fill potential matrices
             np.fill_diagonal(V_mat, v[i] + 0.5 * (l + 0.5) ** 2 * np.exp(-2 * xgrid))
 

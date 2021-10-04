@@ -30,7 +30,7 @@ from joblib import Parallel, delayed, dump, load
 
 #ZZZ
 import math as ma
-import scipy.integrate as integrate
+
 
 # from staticKS import Orbitals
 
@@ -38,69 +38,47 @@ import scipy.integrate as integrate
 from . import config
 from . import mathtools
 
-def ShootGen(V, xgrid):   #The main body of the shooting method solution. calls different functions within the Numerov.py module. Returns the eigenvalues and functions.
-    eigvals=np.zeros(config.spindims, config.lmax, config.nmax)
-    eigfuncs=np.zeros(config.spindims, comfig.lmax, config.nmax, config.grig_params["ngrid"])
-    max_Delta=pow(10,-3) #Will be optimized
-    flag=bool(False)
-    n=int(1)
-    l=int(0)
-"""
-    while (l<=config.lmax):
-        while (n<=config.nmax):
-            if (l>=n):
-                break
-            else:
-            #Obtain (Somehow) an initial E_r value
-                Z_r=Shootsolve(v, xgrid, l, E_r)
-                E_l=E_r
-                Delta=0.1
-                while (flag==False):
-                    E_l=E_l-Delta
-                    Z_l=Shootsolve(v, xgrid, l, E_l)
-                    if (Z_l*Z_r<=0):
-                        E_l=E_l+Delta
-                        Delta =0.5*Delta
-                        if (Delta<max_Delta): #ZZZ Check if there's user defined max_delta
-                            flag=bool(True)
-                            break
-                    else:
-                        continue
-            eigvals(0,l,n)=E_l
-            R=Shootwrite(v, xgrid, l, E)
-            while i in range(xgrid):
-                eigfuncs(0,l,n,i)=R[i]
- 
-        n=n+1
-        l=l+1
-    return eigfuncs, eigvals
-"""
-
-def Esearch(v, xgrid)
-    guess=1.5/(config.Z)**2 #Initial 1/E guess
+def Eig_shoot_search(v, xgrid):
+    guess=1.524/(config.Z)**2 #Initial 1/E guess
     dx=xgrid[1]-xgrid[0] #Spatial resolution
     E_max_err=10**(-5) #maximal energy error
     h4=dx**4 
-    maxcount=1000000 #maximal number of search steps
-    st=0.2 #1/E energy step
-    eigvals=np.zeros(config.spindims, config.lmax, config.nmax)
+    max_count=100000 #maximal number of search steps
+    st=0.01 #1/E energy step
+    eigvals=np.zeros((config.spindims, config.lmax, config.nmax))
+    eigfuncs=np.zeros((config.spindims, config.lmax, config.nmax, config.grid_params["ngrid"]))
     n=int(1)
     l=int(0)
     while (l<=config.lmax):
         while(n<=config.nmax):
+            if n==1:
+                E_l= guess
+                Z_l=Shootsolve(v, xgrid, l, -1.0/guess)
+            else:
+                E_l= eigvals[0, l, n-1] + jump 
+                Z_l=Shootsolve(v, xgrid, l, -1.0/E_l)
+            
             if(n<=l):
                 break
             else:
-                Z_l=Shootsolve(v, xgrid, l, guess)
-                E_l=guess
+                               
+                if n==1:
+                    E_l= guess
+                    Z_l=Shootsolve(v, xgrid, l, -1.0/guess)
+                else:
+                    E_l= eigvals[0, l, n-1] + jump 
+                    Z_l=Shootsolve(v, xgrid, l, -1.0/E_l)
+
                 count=int(1)
-                while(count <= max_count)
+                while(count <= max_count):
                     E_r = E_l+st
-                    Z_r = Shootsolve(v, xgrid, l, E_r)
-                    if (Z_l*Z_r < 0.0):
+                    Z_r = Shootsolve(v, xgrid, l, -1.0/E_r)
+                    #print(Z_l, Z_r)
+                    if (Z_l*Z_r <= 0.0):
+                        print('in')   
                         #an Eigenvalue is found
                         E_m=(E_l*Z_l-E_r*Z_l)/(Z_r-Z_l)
-                        Z_m=Shootsolve(v, xgrid, l, E_m)
+                        Z_m=Shootsolve(v, xgrid, l, -1.0/E_m)
                         #Making the bracket smaller
                         if (Z_m*Z_r>0): 
                             E_r=E_m
@@ -108,35 +86,91 @@ def Esearch(v, xgrid)
                         elif (Z_m*Z_r<0):
                             E_l=E_m
                             Z_l=Z_m
+                        
 
                         #Flags:
                         if (abs(Z_r-Z_l)<h4):
-                            eigvals(0, l, n)= 2.0/(E_r+E_l)
+                            print(1)
+                            eigvals[0, l, n]=-2.0/(E_r+E_l)
+                            #2.0/(E_r+E_l)=eigvals[0, l, n]
+                            break
                         elif(abs(Z_r)<h4):
-                            eigvals(0, l, n)= 2.0/(E_r+E_l)
+                            print(2)
+                            eigvals[0, l, n]=-2.0/(E_r+E_l)
+                            break
+
                         elif(abs(Z_l)<h4): 
-                            eigvals(0, l, n)= 2.0/(E_r+E_l)
+                            print(3)
+                            eigvals[0, l, n]=-2.0/(E_r+E_l)
+                            break
+
                         elif(abs(E_r-E_l) < E_max_err):
+                            print(4)
                             if (abs(Z_l)<ma.sqrt(dx) and abs(Z_r)<ma.sqrt(dx)):
-                                eigvals(0, l, n)= 2.0/(E_r+E_l)
+                                eigvals[0, l, n]=-2.0/(E_r+E_l)
+                                break
+
                             else:
+                                print(4.1)
+                                E_l_former=E_l
+                                E_r_former=E_r
                                 E_l=E_r
-                                Z_l=Shootsolve(v, xgrid, l, E_l)
+                                Z_l=Shootsolve(v, xgrid, l,-1.0/E_l)
                                 count=count+1
-                                break  #ZZZ How far out will it break???
+                                continue#ZZZ How far out will it break???
                         
+                        elif(abs(E_r-E_r_former) < E_max_err):
+                            print(5)
+                            
+                            if (abs(Z_l)<ma.sqrt(dx) and abs(Z_r)<ma.sqrt(dx)):
+                                eigvals[0, l, n]=-2.0/(E_r+E_l)
+                                break
+                            
+                            else:
+                                print(5.1)
+                                E_l_former=E_l
+                                E_r_former=E_r
+                                E_l=E_r
+                                Z_l=Shootsolve(v, xgrid, l, -1.0/E_l) 
+                                continue #ZZZ How far out will it break???
+                        
+                        elif(abs(E_l-E_l_former) < E_max_err):
+                            print(6)
+                            
+                            if (abs(Z_l)<ma.sqrt(dx) and abs(Z_r)<ma.sqrt(dx)): 
+                                eigvals[0, l, n]=-2.0/(E_r+E_l)
+                            
+                            else:
+                                print(6.1)
+                                E_l_former=E_l
+                                E_r_former=E_r
+                                E_l=E_r
+                                Z_l=Shootsolve(v, xgrid, l, -1.0/E_l)
+                                continue #ZZZ How far out will it break???
+                    #elif(Z_l*Z_r>0.0):
+                            
 
+                    E_l_former=E_l
+                    E_r_former=E_r
+                    E_l=E_r
+                    #Z_l=Shootsolve(v, xgrid, l, -1.0/E_l)
+                    Z_l=Z_r
+                    count=count+1
+                    print(E_l)
+                
+                Psi=Shootwrite(v, xgrid, l, eigvals[0, l, n])
+                i=0
 
+                while i<int(np.size(xgrid)):
+                    Psi[i]=eigfuncs[0, l, n, i]
+                    i=i+1
+                if (n>1):
+                    jump=0.8*(1.0/eigvals[0, l, n]-1.0/eigvals[0, l, n-1])
 
-                    else:
-                        E_l=E_r
-                        Z_l=Shootsolve(v, xgrid, l, E_l)
-                        count=count+1
-                #ZZZZ
-        n=n+1
-    l=l+1
-
-
+            n=n+1
+        l=l+1
+        jump=0.0
+    return eigfuncs, eigvals
 
 def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method for the P_nl. It dosn't write down anything but the value of the derivative continuation.
     #Defining spatial resolution -dx, N-No. of points, k-"Numerov's" k(x)- defined as a zeros array, W- k in the log scale
@@ -144,20 +178,53 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
     N = int(np.size(xgrid))
     dx = xgrid[1] - xgrid[0] 
     h=dx**2
+    v=v.reshape(-1)
     k=v-E #ZZZ
     W=np.zeros(N)
     u=np.zeros(3)
     y=np.zeros(3)
-    tp=0
-
+    tp=0    
+#    print("s")
     #(i) Searching for turning point:
-    i=0
-    while i<N:
-        W[i]=-2.0*ma.exp(2.0*xgrid[i])*(v[i]+0.5*(l+0.5)**2*ma.exp(-2.0*xgrid[i])-E) #Defining the logarithmic k array
-        if ((tp==0) and (k[i]*k[i-1]<0) and (abs(k[i]-k[i-1])<1.0)): #Searching for a turningpoint
-            tp=int(i-1)
-        i=i+1
+    i=int(0)
+#    while i<N:
+#        W[i]=-2.0*ma.exp(2.0*xgrid[i])*(v[i]+0.5*(l+0.5)**2*ma.exp(-2.0*xgrid[i])-E) #Defining the logarithmic k array
+        
+#        k_now=v.item(i)-E ; k_form=v.item(i-1)-E
+#        if ((k_now*k_form<0) and (abs(k_now-k_form)<1.0)): #Searching for a turningpoint
+#            tp=int(i-1)
+#            if (tp<4):
+#                print('tp=', tp)
+#                tp=4
+#        i=i+1
+#     np.any(k<0)
+    #print(k)
+#    k=k*np.sign(k[0])
+    flag=False
+    for i in range(len(k)):
+        if (k[i]*k[i-1])<0:
+            tp=i-1
+            flag=True
+            break
+    if flag==False:
+        if (k[i]-k[i-1]<0):
+            tp=i-1
+            flag=True
+
+    #print(tp,'#')
+    W=-2.0*np.exp(2.0*xgrid)*(v+0.5*(l+0.5)**2*np.exp(-2.0*xgrid)-E)  
+    if (tp==0):   #If the program didn't find a turning point, then set it as a minima of v-E:
+        i=0
+        while i<N:
+            k_now=v.item(i)-E ; k_form=v.item(i-1)-E
+            if (k_now > k_form):
+                tp= int (i)
+                break
+            i=i+1
+   #if (tp<4):
+   #    tp=int(50)
     #(ii) Forward integration        
+    #print('ii','tp=', tp)
     a=config.grid_params["x0"]  #a is the leftmost grid point. 
     #b=xgrid[N-1]
     u[0]=ma.exp((l+0.5)*a)
@@ -173,8 +240,9 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
         
     y[0]=u[0] 
     y[1]=u[1]
+    
 
-    y[2]=(2.0*(1.0-5.0*h/12.0*W[tp-1])*y[1]-(1.0+h/12.0*W[tp-2])*y[0])/(1.0+h/12.0*W[tp])
+    y[2]=(2.0*(1.0-5.0*h/12.0*W[int(tp-1)])*y[1]-(1.0+h/12.0*W[int(tp-2)])*y[0])/(1.0+h/12.0*W[tp])
         
     lef=-(y[2]-y[0])/y[1]
         
@@ -215,15 +283,27 @@ def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it,
     W=np.zeros(N)
     P=np.zeros(N)
     tp=int(0)
+    #print("w")
 
     #(i) Searching for turning point:
     i=0
     while i<=N:
-        W[i]=-2.0*ma.exp(2.0*xgrid[i])*(v[i]+0.5*(l+0.5)**2*ma.exp(-2.0*xgrid[i])-E) #Defining the logarithmic k array
-        if ((tp==0) and (k[i]*k[i-1]<0) and (abs(k[i]-k[i-1])<1.0)):
+#        W[i]=-2.0*ma.exp(2.0*xgrid[i])*(v[i]+0.5*(l+0.5)**2*ma.exp(-2.0*xgrid[i])-E) #Defining the logarithmic k array
+#        if ((tp==0) and (k[i]*k[i-1]<0) and (abs(k[i]-k[i-1])<1.0)):
+#            tp=int(i-1)
+#        i=i+1   
+        k_now=v.item(i)-E ; k_form=v.item(i-1)-E
+        if ((k_now*k_form<0) and (abs(k_now-k_form)<1.0)): #Searching for a turningpoint
             tp=int(i-1)
-        i=i+1   
-
+        i=i+1
+    if (tp==0):   #If the program didn't find a turning point, then set it as a minima of v-E:
+        i=0
+        while i<N:
+            k_now=v.item(i)-E ; k_form=v.item(i-1)-E
+            if (k_now > k_form):
+                tp= int (i)
+                break
+    W=-2.0*ma.exp(2.0*xgrid)*(v+0.5*(l+0.5)**2*ma.exp(-2.0*xgrid)-E)
     #allocating 2 arrays - one for (ii) and one for (iii):
     P_lef=np.zeros(tp+1)
     P_rig=np.zeros(N-tp+1)
@@ -269,7 +349,9 @@ def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it,
         elif (i>tp):
             P[i]=P_rig[i-tp]
         i=i+1
-    return P
+    
+    P_norm=mathtools.nornalize_orbs(P,xgrid)
+    return P_norm
 
 
 # @writeoutput.timing

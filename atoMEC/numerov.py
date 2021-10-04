@@ -51,113 +51,44 @@ def Eig_shoot_search(v, xgrid):
     l=int(0)
     while (l<=config.lmax):
         while(n<=config.nmax):
-            if n==1:
-                E_l= guess
-                Z_l=Shootsolve(v, xgrid, l, -1.0/guess)
-            else:
-                E_l= eigvals[0, l, n-1] + jump 
-                Z_l=Shootsolve(v, xgrid, l, -1.0/E_l)
+#            if n==1:
+#                E_l= guess
+#                Z_l=Shootsolve(v, xgrid, l, -1.0/guess)
+#            else:
+#                E_l= eigvals[0, l, n-1] + jump 
+#                Z_l=Shootsolve(v, xgrid, l, -1.0/E_l)
             
             if(n<=l):
                 break
             else:
-                               
-                if n==1:
-                    E_l= guess
-                    Z_l=Shootsolve(v, xgrid, l, -1.0/guess)
-                else:
-                    E_l= eigvals[0, l, n-1] + jump 
-                    Z_l=Shootsolve(v, xgrid, l, -1.0/E_l)
-
-                count=int(1)
-                while(count <= max_count):
-                    E_r = E_l+st
-                    Z_r = Shootsolve(v, xgrid, l, -1.0/E_r)
-                    #print(Z_l, Z_r)
-                    if (Z_l*Z_r <= 0.0):
-                        print('in')   
-                        #an Eigenvalue is found
-                        E_m=(E_l*Z_l-E_r*Z_l)/(Z_r-Z_l)
-                        Z_m=Shootsolve(v, xgrid, l, -1.0/E_m)
-                        #Making the bracket smaller
-                        if (Z_m*Z_r>0): 
-                            E_r=E_m
-                            Z_r=Z_m
-                        elif (Z_m*Z_r<0):
-                            E_l=E_m
-                            Z_l=Z_m
-                        
-
-                        #Flags:
-                        if (abs(Z_r-Z_l)<h4):
-                            print(1)
-                            eigvals[0, l, n]=-2.0/(E_r+E_l)
-                            #2.0/(E_r+E_l)=eigvals[0, l, n]
-                            break
-                        elif(abs(Z_r)<h4):
-                            print(2)
-                            eigvals[0, l, n]=-2.0/(E_r+E_l)
-                            break
-
-                        elif(abs(Z_l)<h4): 
-                            print(3)
-                            eigvals[0, l, n]=-2.0/(E_r+E_l)
-                            break
-
-                        elif(abs(E_r-E_l) < E_max_err):
-                            print(4)
-                            if (abs(Z_l)<ma.sqrt(dx) and abs(Z_r)<ma.sqrt(dx)):
-                                eigvals[0, l, n]=-2.0/(E_r+E_l)
+                if(n==0):
+                    E_0=guess
+                    Z_0=Shootsolve(v, xgrid, l, -1.0/E_0)
+                elif(n==1):
+                    E_0=eigvals[0, l, 0]+st
+                    Z_0=Shootsolve(v, xgrid, l, -1.0/E_0)
+                elif(n>1):
+                    E_0=eigvals[0, l, n]+jump
+                    Z_0=Shootsolve(v, xgrid, l, -1.0/E_0)
+    
+                count=1
+                while (count<max_count):
+                    E_1=E_0+st
+                    Z_1=Shootsolve(v, xgrid, l, -1.0/E_1)
+                        if (Z_1*Z_0>0.0):
+                            E_0=E_1
+                            Z_0=Z_1
+                        elif(Z_1*Z_0<=0.0):
+                            root, E  = refine(v, xgrid, l, E_0, E_1)
+                            if root==True
+                                E=eigvals[0, l, n]
                                 break
+                            elif root==False
+                                continue
+                    count += 1
+                    E_0=E_1
+                    Z_0=Z_1
 
-                            else:
-                                print(4.1)
-                                E_l_former=E_l
-                                E_r_former=E_r
-                                E_l=E_r
-                                Z_l=Shootsolve(v, xgrid, l,-1.0/E_l)
-                                count=count+1
-                                continue#ZZZ How far out will it break???
-                        
-                        elif(abs(E_r-E_r_former) < E_max_err):
-                            print(5)
-                            
-                            if (abs(Z_l)<ma.sqrt(dx) and abs(Z_r)<ma.sqrt(dx)):
-                                eigvals[0, l, n]=-2.0/(E_r+E_l)
-                                break
-                            
-                            else:
-                                print(5.1)
-                                E_l_former=E_l
-                                E_r_former=E_r
-                                E_l=E_r
-                                Z_l=Shootsolve(v, xgrid, l, -1.0/E_l) 
-                                continue #ZZZ How far out will it break???
-                        
-                        elif(abs(E_l-E_l_former) < E_max_err):
-                            print(6)
-                            
-                            if (abs(Z_l)<ma.sqrt(dx) and abs(Z_r)<ma.sqrt(dx)): 
-                                eigvals[0, l, n]=-2.0/(E_r+E_l)
-                            
-                            else:
-                                print(6.1)
-                                E_l_former=E_l
-                                E_r_former=E_r
-                                E_l=E_r
-                                Z_l=Shootsolve(v, xgrid, l, -1.0/E_l)
-                                continue #ZZZ How far out will it break???
-                    #elif(Z_l*Z_r>0.0):
-                            
-
-                    E_l_former=E_l
-                    E_r_former=E_r
-                    E_l=E_r
-                    #Z_l=Shootsolve(v, xgrid, l, -1.0/E_l)
-                    Z_l=Z_r
-                    count=count+1
-                    print(E_l)
-                
                 Psi=Shootwrite(v, xgrid, l, eigvals[0, l, n])
                 i=0
 
@@ -171,6 +102,75 @@ def Eig_shoot_search(v, xgrid):
         l=l+1
         jump=0.0
     return eigfuncs, eigvals
+
+def refine(v, xgrid, l,  x_0, x_1)
+    #When an eigenvalue is bracketed, this subroutine will refine the bracketing until a root is found or the bracket is smaller then a user defined energy error.
+    flag1=False #Internal flag for an in-function loop
+    flag2=False #Reutrns true if a zero is found
+    dx=xgrid[1]-xgrid[0]
+    h4=dx**4
+    E_err=10**(-5)
+
+
+    while(flag1==False):
+        y_1= Shootsolve(v, xgrid, l, -1/x_1)
+        y_0= Shootsolve(v, xgrid, l, -1/x_0)
+        
+        x_2= x_1-y_1*(x_1-x_0)/(y_1-y_0)
+        y_2= Shootsolve(v, xgrid, l, -1/x_2)
+            
+        if (y_1*y_2 <=0.0):
+            if abs(x_2-x_0)<E_err:  #If the bracket is to small then then exit function
+                if (abs(y_1)<ma.sqrt(dx) and abs(y_0)<ma.sqrt(dx)): 
+                    E=-2.0/(y_1+y_2)
+                    flag2=True
+                    flag1=True
+                else:
+                    E=0.0
+                    flag2=False
+                    flag1=True
+
+            y_0=y_2; x_0=x_2
+        elif (y_0*y_2 <=0.0):
+            if abs(x_2-x_1)<E_err:
+                if (abs(y_1)<ma.sqrt(dx) and abs(y_0)<ma.sqrt(dx)):
+                    E=-2.0/(y_2+y_0)
+                    flag2=True
+                    flag1=True
+                else:
+                    E=0.0
+                    flag2=False
+                    flag1=True
+            
+            y_1=y_2; x_1=x_2
+
+        if (abs(y_1-y_0)<h4):
+            E=-2.0/(y_1+y_0)
+            flag2=True
+            flag1=True
+
+        elif (abs(y_0)<h4):
+            E=-1.0/y_0
+            flag2=True
+            flag1=True
+        
+        elif (abs(y_1)<h4):
+            E=-1.0/y_1
+            flag2=True
+            flag1=True
+
+        elif (abs(x_1-x_0) < E_err):
+            if (abs(y_1)<ma.sqrt(dx) and abs(y_0)<ma.sqrt(dx)):
+                E=-2.0/(y_1+y_0)
+                flag2=True
+                flag1=True
+            else:
+                E=0.0
+                flag2=False
+                flag1=True
+            
+    return flag2, E
+    
 
 def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method for the P_nl. It dosn't write down anything but the value of the derivative continuation.
     #Defining spatial resolution -dx, N-No. of points, k-"Numerov's" k(x)- defined as a zeros array, W- k in the log scale

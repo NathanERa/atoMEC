@@ -39,7 +39,7 @@ from . import config
 from . import mathtools
 
 def Eig_shoot_search(v, xgrid):
-    guess=4.0/(3.0*(config.Z)**2) #Initial 1/E guess
+    guess=1/((config.Z)**2) #Initial 1/E guess
     dx=xgrid[1]-xgrid[0] #Spatial resolution
     E_max_err=10**(-5) #maximal energy error
     h4=dx**4 
@@ -51,9 +51,9 @@ def Eig_shoot_search(v, xgrid):
     eigfuncs=np.zeros((config.spindims, config.lmax, config.nmax, config.grid_params["ngrid"]))
     n=int(1)
     l=int(0)
-    
-    while (l<=config.lmax):
-        while(n<=config.nmax):
+
+    while (l<config.lmax):
+        while(n<config.nmax):
 #            if n==1:
 #                E_l= guess
 #                Z_l=Shootsolve(v, xgrid, l, -1.0/guess)
@@ -61,28 +61,28 @@ def Eig_shoot_search(v, xgrid):
 #                E_l= eigvals[0, l, n-1] + jump 
 #                Z_l=Shootsolve(v, xgrid, l, -1.0/E_l)
             
-            if(n<=l):
+            if(n<=l): #not physical
                 break
             else:
-                if(n==0):
+                if(n==1): #start searching at the guess value
                     E_0=guess
                     Z_0=Shootsolve(v, xgrid, l, -1.0/E_0)
-                elif(n==1):
+                elif(n==2): #After one eigenvalue is found, start searching from it
                     E_0=eigvals[0, l, 0]+st
                     Z_0=Shootsolve(v, xgrid, l, -1.0/E_0)
-                elif(n>1):
-                    E_0=eigvals[0, l, n]+jump
+                elif(n>2):#after at least 2 eigenvalue are found. The search can start from the last eigenvalue+ jump. The jump is based on the observation that -
+                    E_0=eigvals[0, l, n]+jump # - the difference between two energy levels is always smaller than previous
                     Z_0=Shootsolve(v, xgrid, l, -1.0/E_0)
     
                 count=1
-                while (count<max_count):
+                while (count<max_count): #Searching for energy values:
                     E_1=E_0+st
                     Z_1=Shootsolve(v, xgrid, l, -1.0/E_1)
                     #print(Z_1,-1/E_1 )
-                    if(Z_1*Z_0<=0.0):
+                    if(Z_1*Z_0<=0.0): #If a root of the function Z is bracketed, use the refine function to calculate it
                         root, E  = refine(v, xgrid, l, E_0, E_1)
                         if root==True:
-                            E=eigvals[0, l, n]
+                            eigvals[0, l, n] = E
                             break
                         elif root==False:
                             continue
@@ -91,14 +91,14 @@ def Eig_shoot_search(v, xgrid):
                     Z_0=Z_1
                 
 
-                Psi=Shootwrite(v, xgrid, l, eigvals[0, l, n])
+                Psi=Shootwrite(v, xgrid, l, eigvals[0, l, n]) #Wrtie the wavefunction
                 i=0
-
-                while i<int(np.size(xgrid)):
-                    Psi[i]=eigfuncs[0, l, n, i]
+                print('QQQQ', eigvals[0, l, n])
+                while i<int(np.size(xgrid)): #Copy WF to output array
+                    Psi[i]=eigfuncs[0, l, n, i] 
                     i=i+1
                 if (n>1):
-                    jump=0.8*(-1.0/eigvals[0, l, n]+1.0/eigvals[0, l, n-1])
+                    jump=0.8*(-1.0/eigvals[0, l, n]+1.0/eigvals[0, l, n-1]) #Calculates the jump as 0.8 times the (inverse) of the energy difference
 
             n=n+1
         l=l+1
@@ -107,21 +107,24 @@ def Eig_shoot_search(v, xgrid):
 
 def refine(v, xgrid, l,  x_0, x_1):
     #When an eigenvalue is bracketed, this subroutine will refine the bracketing until a root is found or the bracket is smaller then a user defined energy error.
-    flag1=False #Internal flag for an in-function loop
-    flag2=False #Reutrns true if a zero is found
+    #The refinement process is done via the secent method.
+    flag1=False #Internal flag for an in-function loop. When it is true the main loop breaks
+    flag2=False #Reutrns true if a zero is found. Returns False if the bracket does not contain a zero.
     dx=xgrid[1]-xgrid[0]
     h4=dx**4
-    E_err=10**(-5)
+    E_err=10**(-5) #Maximal energy error
 
 
     while(flag1==False):
         y_1= Shootsolve(v, xgrid, l, -1/x_1)
         y_0= Shootsolve(v, xgrid, l, -1/x_0)
         
-        x_2= x_1-y_1*(x_1-x_0)/(y_1-y_0)
+        x_2= x_1-y_1*(x_1-x_0)/(y_1-y_0) #The mid-point defined by the secent method
         y_2= Shootsolve(v, xgrid, l, -1/x_2)
-            
-        if (y_1*y_2 <=0.0):
+        
+
+        #searches if the zero is in [x_0,x_2] or [x_2,x_1] and then redefines the bracket based on it
+        if (y_1*y_2 <=0.0): 
             if abs(x_2-x_0)<E_err:  #If the bracket is to small then then exit function
                 if (abs(y_1)<ma.sqrt(dx) and abs(y_0)<ma.sqrt(dx)): 
                     E=-2.0/(y_1+y_2)
@@ -145,8 +148,10 @@ def refine(v, xgrid, l,  x_0, x_1):
                     flag1=True
             
             y_1=y_2; x_1=x_2
+        
+        #The 'if' conditions for which a zero is declared
 
-        if (abs(y_1-y_0)<h4):
+        if (abs(y_1-y_0)<h4): 
             E=-2.0/(y_1+y_0)
             flag2=True
             flag1=True
@@ -178,55 +183,41 @@ def refine(v, xgrid, l,  x_0, x_1):
 def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method for the P_nl. It dosn't write down anything but the value of the derivative continuation.
     #Defining spatial resolution -dx, N-No. of points, k-"Numerov's" k(x)- defined as a zeros array, W- k in the log scale
     #u and y are for performing the integration
+    #Note: The array Q[i] is purely to write the function as a check. It has no role in solving the equation
     N = int(np.size(xgrid))
     dx = xgrid[1] - xgrid[0] 
-    h=dx**2
+    h=(dx**2)/12.0
     v=v.reshape(-1)
     k=v-E #ZZZ
     W=np.zeros(N)
+    Q=np.zeros(N)
     u=np.zeros(3)
     y=np.zeros(3)
     tp=0    
-    #(i) Searching for turning point:
+     
+    #(i) Setting turning point and calculating the coefficient of P in the DE that we solve (It is NOT W from the preprint):
     W=-2.0*np.exp(2.0*xgrid)*(v-E)-(l+0.5)**2  
-    tp=int(ma.floor(N/4))
-    #print(W)
-#    if (tp==0):   #If the program didn't find a turning point, then set it as a minima of v-E:
-#        i=0
-#        while i<N:
-#            k_now=v.item(i)-E ; k_form=v.item(i-1)-E
-#            if (k_now > k_form):
-#                tp= int (i)
-#                break
-#            i=i+1
-#    
-#    i=0
-#    flag= False
- #   while i<N:
- #       if W[i]*W[i-1]<=0:
- #           tp=i-1
- #           flag=True
- #           break
- #       i += 1
- #   if flag==False:
- #   tp=int(ma.floor(N/2))
+    tp=int(ma.floor(0.85*N))
 
     #(ii) Forward integration        
-    #print('ii','tp=', tp)
     a=config.grid_params["x0"]  #a is the leftmost grid point. 
-    #b=xgrid[N-1]
+    
     u[0]=np.exp((l+0.5)*a)
     u[1]=np.exp((l+0.5)*a)*(1+dx*(l+0.5))
+    
     i=int(1)
-    h=h/12.0
-    while (i<tp): 
-
+    
+    while (i<tp): #Integrating forward using Numerov, until P(x_tp)
+        
         u[2]=(2.0*(1.0-5.0*h*W[i])*u[1]-(1.0+h*W[i-1])*u[0])/(1.0+h*W[i+1])
-            
+        Q[i]=str(u[2])
+        
+
         u[0]=u[1]
         u[1]=u[2]
         i=i+1
-        
+    #Calculating P(x_tp+1)
+
     y[0]=u[0] 
     y[1]=u[1]
     
@@ -234,21 +225,25 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
     y[2]=(2.0*(1.0-5.0*h*W[int(tp)])*y[1]-(1.0+h*W[int(tp-1)])*y[0])/(1.0+h*W[tp+1])
         
     lef=-(y[2]-y[0])/y[1]
-    print('lef', y[0], y[1], y[2])   
+    #print('lef', y[0], y[1], y[2])   
+    
     #(iii) Backwards integration
     u[0]=u[1]=u[2]=0.0
-        
-    if (config.bc=="neumann"):
+    
+    #Setting initial conditions
+
+    if (config.bc=="neumann"):#ZZZ Need to check!!
         u[2]=np.exp(-ma.sqrt(-2.0*E)*np.exp(xgrid[N-1])+0.5*xgrid[N-1])
         u[1]=(1-0.5*dx)*u[2]
-    else:
+    elif config.bc=="dirichlet":
         u[2]=0
-        u[1]=a 
+        u[1]=np.exp(-ma.sqrt(-2.0*E)*np.exp(xgrid[N-1])+0.5*xgrid[N-1])
 
+    #Integrating backwards using Numerov
     i=int(N-2)
     while (i>tp):
-        u[0]=(-(1.0+h*W[i+1])*u[2]+2.0*(1.0-5.0*h*W[i]*u[1]))/(1.0+h*W[i-1])
-
+        u[0]=(-(1.0+h*W[i+1])*u[2]+2.0*(1.0-5.0*h*W[i])*u[1])/(1.0+h*W[i-1])
+        Q[i]=str(u[2])
         u[2]=u[1]
         u[1]=u[0]
         i=i-1
@@ -258,63 +253,37 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
 
     y[0]=(-(1.0+h*W[tp+1])*y[2]+2.0*(1.0-5.0*h*W[tp])*y[1])/(1.0+h*W[tp-1])
         
-    print('right', y[0], y[1], y[2])   
+    #print('right', y[0], y[1], y[2])   
     right=-(y[0]-y[2])/y[1]
+    
+    #f= open("test.txt", "w") 
+    #i=0
+    #while i<N:
+    #    qi=str(Q[i])
+    #    f.write(qi+'\n')
+    #    i += 1
+    #f.close()
 
     #Defining the "differntiability" function for the specific (E,l)
     cont=lef+right
-    #print(cont, lef, right)
+    print(cont, lef, right, E)
     return cont
             
 def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it, writes it down and reports it. 
-    dx = xgrid[1] - xgrid[0]
+   #QQQQQ 
+    v=v.reshape(-1)
+    dx=xgrid[1]-xgrid[0]
     N = int(np.size(xgrid))
-    h=dx**2
+    h=(dx**2)/12.0
     k=v-E #ZZZ
     W=np.zeros(N)
     P=np.zeros(N)
-    tp=int(0)
-    print("write!")
+    print("write!", E)
 
     #(i) Searching for turning point:
-    i=0
-#    while i<=N:
-#        W[i]=-2.0*ma.exp(2.0*xgrid[i])*(v[i]+0.5*(l+0.5)**2*ma.exp(-2.0*xgrid[i])-E) #Defining the logarithmic k array
-#        if ((tp==0) and (k[i]*k[i-1]<0) and (abs(k[i]-k[i-1])<1.0)):
-#            tp=int(i-1)
-#        i=i+1   
-#        k_now=v.item(i)-E ; k_form=v.item(i-1)-E
-#        if ((k_now*k_form<0) and (abs(k_now-k_form)<1.0)): #Searching for a turningpoint
-#            tp=int(i-1)
-#        i=i+1
-#    if (tp==0):   #If the program didn't find a turning point, then set it as a minima of v-E:
-#        i=0
-#        while i<N:
-#            k_now=v.item(i)-E ; k_form=v.item(i-1)-E
-#            if (k_now > k_form):
-#                tp= int (i)
-#                break
-    W=-2.0*ma.exp(2.0*xgrid)*(v+0.5*(l+0.5)**2*ma.exp(-2.0*xgrid)-E)
-    flag=False
-    for i in range(len(k)):
-        if (k[i]*k[i-1])<0:
-            tp=i-1
-            flag=True
-            break
-    if flag==False:
-        if (k[i]-k[i-1]<0):
-            tp=i-1
-            flag=True
     
-    if (tp==0):   #If the program didn't find a turning point, then set it as a minima of v-E:
-        i=0
-        while i<N:
-            k_now=v.item(i)-E ; k_form=v.item(i-1)-E
-            if (k_now > k_form):
-                tp= int (i)
-                break
-            i=i+1
-    
+    W=-2.0*np.exp(2.0*xgrid)*(v-E)-(l+0.5)**2  
+    tp=int(ma.floor(5*N/6))
     #allocating 2 arrays - one for (ii) and one for (iii):
     P_lef=np.zeros(tp+1)
     P_rig=np.zeros(N-tp+1)
@@ -327,7 +296,7 @@ def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it,
     i=int(2)
     while (i<=tp):
 
-        P_lef[i]=(2.0*(1.0-5.0*h/12.0*W[i-1])*P_lef[i-1]-(1.0+h/12.0*W[i-2])*P_lef[i-2])/(1.0+h/12.0*W[i])
+        P_lef[i]=(2.0*(1.0-5.0*h*W[i-1])*P_lef[i-1]-(1.0+h*W[i-2])*P_lef[i-2])/(1.0+h*W[i])
         i=i+1
         
 
@@ -336,19 +305,20 @@ def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it,
 
     #(iii) Backwards integration
         
-    if (config.bc=="neumann"):
-        P_rig[N-tp]=ma.exp(-ma.sqrt(-2.0*E)*ma.exp(xgrid[N-1])+0.5*xgrid[N-1])
-        P[N-tp-1]=(1-0.5*dx)*P_rig[N-tp]
-    else:
+        
+    if (config.bc=="neumann"):#ZZZ Need to check!!
+        P_rig[N-tp]=np.exp(-ma.sqrt(-2.0*E)*np.exp(xgrid[N-1])+0.5*xgrid[N-1])
+        P_rig[N-tp-1]=(1-0.5*dx)*u[2]
+    elif config.bc=="dirichlet":
         P_rig[N-tp]=0
-        P_rig[N-tp-1]=a 
-
+        P_rig[N-tp-1]=np.exp(-ma.sqrt(-2.0*E)*np.exp(xgrid[N-1])+0.5*xgrid[N-1])
+    
     i=int(N-tp-2)
     while (i>=0):
-        P_rig[i]=(-(1.0+h/12.0*W[i+2])*P_rig[i+2]+2.0*(1.0-5.0*h/12.0*W[i+1]*P_rig[i+1]))/(1.0+h/12.0*W[i])
+        P_rig[i]=(-(1.0+h*W[i+2])*P_rig[i+2]+2.0*(1.0-5.0*h*W[i+1])*P_rig[i+1])/(1.0+h*W[i])
         i=i-1
     
-    #imposing contin.
+    #imposing continuity
     h_l=P_lef[tp]
     h_r=P_rig[0]
     P_rig=(h_l/h_r)*P_rig
@@ -361,7 +331,7 @@ def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it,
             P[i]=P_rig[i-tp]
         i=i+1
     
-    P_norm=mathtools.nornalize_orbs(P,xgrid)
+    P_norm=mathtools.normalize_orbs(P,xgrid)
     return P_norm
 
 

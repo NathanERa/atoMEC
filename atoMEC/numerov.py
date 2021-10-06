@@ -39,12 +39,12 @@ from . import config
 from . import mathtools
 
 def Eig_shoot_search(v, xgrid):
-    guess=1/((config.Z)**2) #Initial 1/E guess
+    guess=1.55 #Initial 1/E guess
     dx=xgrid[1]-xgrid[0] #Spatial resolution
     E_max_err=10**(-5) #maximal energy error
     h4=dx**4 
-    v=v.reshape(-1)
-    max_count=100000 #maximal number of search steps
+    #v=v.reshape(-1)
+    max_count=10000 #maximal number of search steps
 #    st: np.float64 = 0
     st=0.1 #1/E energy step
     
@@ -54,11 +54,11 @@ def Eig_shoot_search(v, xgrid):
     l=int(0)
     f=open("pot.txt", "w")
     j=0
-    while j < np.size(xgrid):
-        vstr=str(v[j])
-        f.write(vstr + '\n')
-        j += 1
-    f.close()
+   # while j < np.size(xgrid):
+   #     vstr=str(v[j])
+    #    f.write(vstr + '\n')
+    #    j += 1
+    #f.close()
 
 
     while (l<config.lmax):
@@ -69,7 +69,7 @@ def Eig_shoot_search(v, xgrid):
 #            else:
 #                E_l= eigvals[0, l, n-1] + jump 
 #                Z_l=Shootsolve(v, xgrid, l, -1.0/E_l)
-            
+            print('n=',n)
             if(n<=l): #not physical
                 break
             else:
@@ -87,7 +87,7 @@ def Eig_shoot_search(v, xgrid):
                 while (count<max_count): #Searching for energy values:
                     E_1=E_0+st
                     Z_1=Shootsolve(v, xgrid, l, -1.0/E_1)
-                    #print(E_1,-1.0/E_1 )
+                    print('E_1',-1.0/E_1 )
                     if(Z_1*Z_0<=0.0): #If a root of the function Z is bracketed, use the refine function to calculate it
                         root, E  = refine(v, xgrid, l, E_0, E_1)
                         if root==True:
@@ -119,6 +119,7 @@ def Eig_shoot_search(v, xgrid):
             n=n+1
         l=l+1
         jump=0.0
+        eigfuncs=np.sort(eigfuncs, axis=2)
     return eigfuncs, eigvals
 
 def refine(v, xgrid, l,  x_0, x_1):
@@ -128,7 +129,7 @@ def refine(v, xgrid, l,  x_0, x_1):
     flag2=False #Reutrns true if a zero is found. Returns False if the bracket does not contain a zero.
     dx=xgrid[1]-xgrid[0]
     h4=dx**4
-    E_err=10**(-3) #Maximal energy error
+    E_err=10**(-4) #Maximal energy error
     
     
 
@@ -205,7 +206,7 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
     N = int(np.size(xgrid))
     dx = xgrid[1] - xgrid[0] 
     h=(dx**2)/12.0
-    #v=v.reshape(-1)
+    v=v.reshape(-1)
     k=v-E #ZZZ
     W=np.zeros(N, dtype=np.float64)
     Q=np.zeros(N)
@@ -218,11 +219,14 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
     #tp=int(ma.floor(0.2*N))
     i=0
     while i<N:
-        if v[i] > E:
+        if v[i] > (E+v[N-1]):
             tp=i-1
             break
         i += 1
-    #print(tp)
+    if tp == 0:
+        tp =int(ma.floor(5.0*N/6.0))
+    #print(tp, N)
+    
     #(ii) Forward integration        
     a=config.grid_params["x0"]  #a is the leftmost grid point. 
     
@@ -262,7 +266,8 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
     elif config.bc=="dirichlet":
         u[2]=0
         u[1]=np.exp(-ma.sqrt(-2.0*E)*np.exp(xgrid[N-1])+0.5*xgrid[N-1])
-
+    
+    
     #Integrating backwards using Numerov
     i=int(N-2)
     while (i>tp):
@@ -295,7 +300,7 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
             
 def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it, writes it down and reports it. 
    #QQQQQ 
-    #v=v.reshape(-1)
+    v=v.reshape(-1)
     dx=xgrid[1]-xgrid[0]
     N = int(np.size(xgrid))
     h=(dx**2)/12.0
@@ -310,10 +315,11 @@ def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it,
     #tp=int(ma.floor(5*N/6))
     i=0
     while i<N:
-        if v[i] > E:
+        if v[i] > (E+v[N-1]):
             tp=i-1
             break
         i += 1
+    
     #allocating 2 arrays - one for (ii) and one for (iii):
     P_lef=np.zeros(tp+1, dtype=np.float64)
     P_rig=np.zeros(N-tp+1, dtype=np.float64)

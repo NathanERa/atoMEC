@@ -43,6 +43,7 @@ def Eig_shoot_search(v, xgrid):
     dx=xgrid[1]-xgrid[0] #Spatial resolution
     E_max_err=10**(-5) #maximal energy error
     h4=dx**4 
+    v=v.reshape(-1)
     max_count=100000 #maximal number of search steps
 #    st: np.float64 = 0
     st=0.1 #1/E energy step
@@ -51,6 +52,14 @@ def Eig_shoot_search(v, xgrid):
     eigfuncs=np.zeros((config.spindims, config.lmax, config.nmax, config.grid_params["ngrid"]))
     n=int(1)
     l=int(0)
+    f=open("pot.txt", "w")
+    j=0
+    while j < np.size(xgrid):
+        vstr=str(v[j])
+        f.write(vstr + '\n')
+        j += 1
+    f.close()
+
 
     while (l<config.lmax):
         while(n<config.nmax):
@@ -64,21 +73,21 @@ def Eig_shoot_search(v, xgrid):
             if(n<=l): #not physical
                 break
             else:
-                if(n==1): #start searching at the guess value
+                if(n==1): #start searching at the guess value #QZQZQZn==1
                     E_0=guess
                     Z_0=Shootsolve(v, xgrid, l, -1.0/E_0)
-                elif(n==2): #After one eigenvalue is found, start searching from it
+                elif(n==2): #After one eigenvalue is found, start searching from it #QZQZQZ n==2
                     E_0=eigvals[0, l, 0]+st
                     Z_0=Shootsolve(v, xgrid, l, -1.0/E_0)
-                elif(n>2):#after at least 2 eigenvalue are found. The search can start from the last eigenvalue+ jump. The jump is based on the observation that -
-                    E_0=eigvals[0, l, n]+jump # - the difference between two energy levels is always smaller than previous
+                elif(n>2):#after at least 2 eigenvalue are found. The search can start from the last eigenvalue+ jump. The jump is based on the observation that - #QZQZQZ n>2
+                    E_0=eigvals[0, l, n]+jump # - the difference between two energy levels is always smaller than previous 
                     Z_0=Shootsolve(v, xgrid, l, -1.0/E_0)
     
                 count=1
                 while (count<max_count): #Searching for energy values:
                     E_1=E_0+st
                     Z_1=Shootsolve(v, xgrid, l, -1.0/E_1)
-                    #print(Z_1,-1/E_1 )
+                    #print(E_1,-1.0/E_1 )
                     if(Z_1*Z_0<=0.0): #If a root of the function Z is bracketed, use the refine function to calculate it
                         root, E  = refine(v, xgrid, l, E_0, E_1)
                         if root==True:
@@ -93,13 +102,20 @@ def Eig_shoot_search(v, xgrid):
 
                 Psi=Shootwrite(v, xgrid, l, eigvals[0, l, n]) #Wrtie the wavefunction
                 i=0
-                print('QQQQ', eigvals[0, l, n])
+                #print('QQQQ', eigvals[0, l, n])
                 while i<int(np.size(xgrid)): #Copy WF to output array
-                    Psi[i]=eigfuncs[0, l, n, i] 
+                    eigfuncs[0, l, n, i] = Psi[i]
                     i=i+1
+                i=0
+                while i<int(np.size(xgrid)):
+                    if Psi[i] != 0:
+                        #print('!')
+                        break
+                    i+=1
+
                 if (n>1):
                     jump=0.8*(-1.0/eigvals[0, l, n]+1.0/eigvals[0, l, n-1]) #Calculates the jump as 0.8 times the (inverse) of the energy difference
-
+                
             n=n+1
         l=l+1
         jump=0.0
@@ -112,22 +128,24 @@ def refine(v, xgrid, l,  x_0, x_1):
     flag2=False #Reutrns true if a zero is found. Returns False if the bracket does not contain a zero.
     dx=xgrid[1]-xgrid[0]
     h4=dx**4
-    E_err=10**(-5) #Maximal energy error
-
+    E_err=10**(-3) #Maximal energy error
+    
+    
 
     while(flag1==False):
-        y_1= Shootsolve(v, xgrid, l, -1/x_1)
-        y_0= Shootsolve(v, xgrid, l, -1/x_0)
+        y_1= Shootsolve(v, xgrid, l, -1.0/x_1)
+        y_0= Shootsolve(v, xgrid, l, -1.0/x_0)
         
-        x_2= x_1-y_1*(x_1-x_0)/(y_1-y_0) #The mid-point defined by the secent method
-        y_2= Shootsolve(v, xgrid, l, -1/x_2)
-        
+        #x_2= x_1-y_1*(x_1-x_0)/(y_1-y_0) #The mid-point defined by the secent method
+        x_2=(x_0+x_1)/2.0
+        y_2= Shootsolve(v, xgrid, l, -1.0/x_2)
+        #print('find',-1.0/x_0, -1.0/x_1)   
 
         #searches if the zero is in [x_0,x_2] or [x_2,x_1] and then redefines the bracket based on it
         if (y_1*y_2 <=0.0): 
             if abs(x_2-x_0)<E_err:  #If the bracket is to small then then exit function
                 if (abs(y_1)<ma.sqrt(dx) and abs(y_0)<ma.sqrt(dx)): 
-                    E=-2.0/(y_1+y_2)
+                    E=-2.0/(x_1+x_2)
                     flag2=True
                     flag1=True
                 else:
@@ -139,7 +157,7 @@ def refine(v, xgrid, l,  x_0, x_1):
         elif (y_0*y_2 <=0.0):
             if abs(x_2-x_1)<E_err:
                 if (abs(y_1)<ma.sqrt(dx) and abs(y_0)<ma.sqrt(dx)):
-                    E=-2.0/(y_2+y_0)
+                    E=-2.0/(x_2+x_0)
                     flag2=True
                     flag1=True
                 else:
@@ -152,23 +170,23 @@ def refine(v, xgrid, l,  x_0, x_1):
         #The 'if' conditions for which a zero is declared
 
         if (abs(y_1-y_0)<h4): 
-            E=-2.0/(y_1+y_0)
+            E=-2.0/(x_1+x_0)
             flag2=True
             flag1=True
 
         elif (abs(y_0)<h4):
-            E=-1.0/y_0
+            E=-1.0/x_0
             flag2=True
             flag1=True
         
         elif (abs(y_1)<h4):
-            E=-1.0/y_1
+            E=-1.0/x_1
             flag2=True
             flag1=True
 
         elif (abs(x_1-x_0) < E_err):
             if (abs(y_1)<ma.sqrt(dx) and abs(y_0)<ma.sqrt(dx)):
-                E=-2.0/(y_1+y_0)
+                E=-2.0/(x_1+x_0)
                 flag2=True
                 flag1=True
             else:
@@ -176,7 +194,7 @@ def refine(v, xgrid, l,  x_0, x_1):
                 flag2=False
                 flag1=True
             
-    print('find')
+    #print('find', E)
     return flag2, E
     
 
@@ -187,18 +205,24 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
     N = int(np.size(xgrid))
     dx = xgrid[1] - xgrid[0] 
     h=(dx**2)/12.0
-    v=v.reshape(-1)
+    #v=v.reshape(-1)
     k=v-E #ZZZ
-    W=np.zeros(N)
+    W=np.zeros(N, dtype=np.float64)
     Q=np.zeros(N)
-    u=np.zeros(3)
-    y=np.zeros(3)
+    u=np.zeros(3, dtype=np.float64)
+    y=np.zeros(3, dtype=np.float64)
     tp=0    
      
     #(i) Setting turning point and calculating the coefficient of P in the DE that we solve (It is NOT W from the preprint):
     W=-2.0*np.exp(2.0*xgrid)*(v-E)-(l+0.5)**2  
-    tp=int(ma.floor(0.85*N))
-
+    #tp=int(ma.floor(0.2*N))
+    i=0
+    while i<N:
+        if v[i] > E:
+            tp=i-1
+            break
+        i += 1
+    #print(tp)
     #(ii) Forward integration        
     a=config.grid_params["x0"]  #a is the leftmost grid point. 
     
@@ -266,27 +290,33 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
 
     #Defining the "differntiability" function for the specific (E,l)
     cont=lef+right
-    print(cont, lef, right, E)
+    #print(cont, lef, right, E)
     return cont
             
 def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it, writes it down and reports it. 
    #QQQQQ 
-    v=v.reshape(-1)
+    #v=v.reshape(-1)
     dx=xgrid[1]-xgrid[0]
     N = int(np.size(xgrid))
     h=(dx**2)/12.0
     k=v-E #ZZZ
-    W=np.zeros(N)
-    P=np.zeros(N)
-    print("write!", E)
+    W=np.zeros(N, dtype=np.float64)
+    P=np.zeros(N, dtype=np.float64)
+    #print("write!", E)
 
     #(i) Searching for turning point:
     
     W=-2.0*np.exp(2.0*xgrid)*(v-E)-(l+0.5)**2  
-    tp=int(ma.floor(5*N/6))
+    #tp=int(ma.floor(5*N/6))
+    i=0
+    while i<N:
+        if v[i] > E:
+            tp=i-1
+            break
+        i += 1
     #allocating 2 arrays - one for (ii) and one for (iii):
-    P_lef=np.zeros(tp+1)
-    P_rig=np.zeros(N-tp+1)
+    P_lef=np.zeros(tp+1, dtype=np.float64)
+    P_rig=np.zeros(N-tp+1, dtype=np.float64)
 
 
     #(ii) Forward integration        

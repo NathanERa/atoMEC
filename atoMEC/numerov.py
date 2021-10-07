@@ -39,7 +39,7 @@ from . import config
 from . import mathtools
 
 def Eig_shoot_search(v, xgrid):
-    guess=0.1 #Initial 1/E guess
+    guess=0.01 #Initial 1/E guess
     dx=xgrid[1]-xgrid[0] #Spatial resolution
     E_max_err=10**(-5) #maximal energy error
     h4=dx**4 
@@ -349,11 +349,11 @@ def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it,
         
     if (config.bc=="neumann"):#ZZZ Need to check!!
         P_rig[N-tp]=np.exp(-ma.sqrt(-2.0*E)*np.exp(xgrid[N-1])+0.5*xgrid[N-1])
-        P_rig[N-tp-1]=(1-0.5*dx)*u[2]
+        P_rig[N-tp-1]=(1-0.5*dx)*P_rig[N-tp]
     elif config.bc=="dirichlet":
-        P_rig[N-tp]=0
-        P_rig[N-tp-1]=np.exp(-ma.sqrt(-2.0*E)*np.exp(xgrid[N-1])+0.5*xgrid[N-1])
-    
+        P_rig[-1]=0.0
+        P_rig[-2]=np.exp(-ma.sqrt(-2.0*E)*np.exp(xgrid[N-1])+0.5*xgrid[N-1])
+    print('1', P_rig[-1]) 
     i=int(N-tp-2)
     while (i>=0):
         P_rig[i]=(-(1.0+h*W[i+2])*P_rig[i+2]+2.0*(1.0-5.0*h*W[i+1])*P_rig[i+1])/(1.0+h*W[i])
@@ -363,16 +363,22 @@ def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it,
     h_l=P_lef[tp]
     h_r=P_rig[0]
     P_rig=(h_l/h_r)*P_rig
+    print('2',P_rig[-1])
 
     i=int(0)
     while (i<N):
         if (i<=tp):
             P[i]=P_lef[i]
         elif (i>tp):
-            P[i]=P_rig[i-tp]
+            P[i]=P_rig[i-tp+1]
         i=i+1
+
+    P = np.concatenate((P_lef,P_rig[2:]))
+    #print(np.shape(P_lef), np.shape(P_rig))
     
-    P_norm=mathtools.normalize_orbs(P,xgrid)
+    print('3', P[-1])
+    #P_norm=mathtools.normalize_orbs(P,xgrid)
+    P_norm = P
     return P_norm
 
 

@@ -39,12 +39,12 @@ from . import config
 from . import mathtools
 
 def Eig_shoot_search(v, xgrid):
-    guess=1.55 #Initial 1/E guess
+    guess=0.1 #Initial 1/E guess
     dx=xgrid[1]-xgrid[0] #Spatial resolution
     E_max_err=10**(-5) #maximal energy error
     h4=dx**4 
     #v=v.reshape(-1)
-    max_count=10000 #maximal number of search steps
+    max_count=1000 #maximal number of search steps
 #    st: np.float64 = 0
     st=0.1 #1/E energy step
     
@@ -77,24 +77,26 @@ def Eig_shoot_search(v, xgrid):
                     E_0=guess
                     Z_0=Shootsolve(v, xgrid, l, -1.0/E_0)
                 elif(n==2): #After one eigenvalue is found, start searching from it #QZQZQZ n==2
-                    E_0=eigvals[0, l, 0]+st
+                    E_0=-1.0/eigvals[0, l, 1]+st
                     Z_0=Shootsolve(v, xgrid, l, -1.0/E_0)
                 elif(n>2):#after at least 2 eigenvalue are found. The search can start from the last eigenvalue+ jump. The jump is based on the observation that - #QZQZQZ n>2
-                    E_0=eigvals[0, l, n]+jump # - the difference between two energy levels is always smaller than previous 
+                    E_0=-1.0/eigvals[0, l, n-1]+jump # - the difference between two energy levels is always smaller than previous 
                     Z_0=Shootsolve(v, xgrid, l, -1.0/E_0)
     
                 count=1
                 while (count<max_count): #Searching for energy values:
                     E_1=E_0+st
                     Z_1=Shootsolve(v, xgrid, l, -1.0/E_1)
-                    print('E_1',-1.0/E_1 )
+                    print('E_1',-1.0/E_1, 'Z_1', Z_1 )
                     if(Z_1*Z_0<=0.0): #If a root of the function Z is bracketed, use the refine function to calculate it
                         root, E  = refine(v, xgrid, l, E_0, E_1)
                         if root==True:
                             eigvals[0, l, n] = E
+                            print('E=', E)
                             break
-                        elif root==False:
-                            continue
+                       # elif root==False:
+                       #     print('False Zero')
+                       #     continue
                     count = count+1
                     E_0=E_1
                     Z_0=Z_1
@@ -216,22 +218,25 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
      
     #(i) Setting turning point and calculating the coefficient of P in the DE that we solve (It is NOT W from the preprint):
     W=-2.0*np.exp(2.0*xgrid)*(v-E)-(l+0.5)**2  
-    #tp=int(ma.floor(0.2*N))
+    #tp=int(ma.floor(0.85*N))
     i=0
     while i<N:
         if v[i] > (E+v[N-1]):
             tp=i-1
             break
         i += 1
-    if tp == 0:
-        tp =int(ma.floor(5.0*N/6.0))
+    if tp < 4:
+        tp=4
+    if tp > N-4:
+        tp=N-4
+    
     #print(tp, N)
     
     #(ii) Forward integration        
     a=config.grid_params["x0"]  #a is the leftmost grid point. 
     
     u[0]=np.exp((l+0.5)*a)
-    u[1]=np.exp((l+0.5)*a)*(1+dx*(l+0.5))
+    u[1]=np.exp((l+0.5)*(a+dx))
     
     i=int(1)
     
@@ -283,7 +288,7 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
     y[0]=(-(1.0+h*W[tp+1])*y[2]+2.0*(1.0-5.0*h*W[tp])*y[1])/(1.0+h*W[tp-1])
         
     #print('right', y[0], y[1], y[2])   
-    right=-(y[0]-y[2])/y[1]
+    right=(y[2]-y[0])/y[1]
     
     #f= open("test.txt", "w") 
     #i=0

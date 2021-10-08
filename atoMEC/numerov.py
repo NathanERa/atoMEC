@@ -39,31 +39,37 @@ from . import config
 from . import mathtools
 
 def Eig_shoot_search(v, xgrid):
-    guess=0.01 #Initial 1/E guess
+    guess=0.1 #Initial 1/E guess
     dx=xgrid[1]-xgrid[0] #Spatial resolution
     E_max_err=10**(-5) #maximal energy error
     h4=dx**4 
-    #v=v.reshape(-1)
+
     max_count=1000 #maximal number of search steps
-#    st: np.float64 = 0
+
     st=0.1 #1/E energy step
     
     eigvals=np.zeros((config.spindims, config.lmax, config.nmax))
     eigfuncs=np.zeros((config.spindims, config.lmax, config.nmax, config.grid_params["ngrid"]))
     n=int(1)
     l=int(0)
-    f=open("pot.txt", "w")
+    #f=open("z.txt", "w")
     j=0
-   # while j < np.size(xgrid):
-   #     vstr=str(v[j])
+    D=Shootwrite(v, xgrid, 0, -0.502)
+    
+    #while j < np.size(xgrid):
+    #    vstr=str(D[j])
     #    f.write(vstr + '\n')
     #    j += 1
     #f.close()
 
+    
+
 
     while (l<config.lmax):
         while(n<config.nmax):
-#            if n==1:
+
+            f=open("z.txt", "w")
+#           if n==1:
 #                E_l= guess
 #                Z_l=Shootsolve(v, xgrid, l, -1.0/guess)
 #            else:
@@ -87,12 +93,14 @@ def Eig_shoot_search(v, xgrid):
                 while (count<max_count): #Searching for energy values:
                     E_1=E_0+st
                     Z_1=Shootsolve(v, xgrid, l, -1.0/E_1)
-                    print('E_1',-1.0/E_1, 'Z_1', Z_1 )
+                    #print('E_1',-1.0/E_1, 'Z_1', Z_1 )
+                    zstring=str(Z_1)
+                    f.write(zstring + '\n')
                     if(Z_1*Z_0<=0.0): #If a root of the function Z is bracketed, use the refine function to calculate it
                         root, E  = refine(v, xgrid, l, E_0, E_1)
                         if root==True:
                             eigvals[0, l, n] = E
-                            print('E=', E)
+                            #print('E=', E)
                             break
                        # elif root==False:
                        #     print('False Zero')
@@ -104,9 +112,10 @@ def Eig_shoot_search(v, xgrid):
 
                 Psi=Shootwrite(v, xgrid, l, eigvals[0, l, n]) #Wrtie the wavefunction
                 i=0
-                #print('QQQQ', eigvals[0, l, n])
+               #print('QQQQ', eigvals[0, l, n])
                 while i<int(np.size(xgrid)): #Copy WF to output array
                     eigfuncs[0, l, n, i] = Psi[i]
+                   # eigfuncs[0, l, n, i] = D[i]
                     i=i+1
                 i=0
                 while i<int(np.size(xgrid)):
@@ -122,6 +131,7 @@ def Eig_shoot_search(v, xgrid):
         l=l+1
         jump=0.0
         eigfuncs=np.sort(eigfuncs, axis=2)
+        f.close()
     return eigfuncs, eigvals
 
 def refine(v, xgrid, l,  x_0, x_1):
@@ -288,7 +298,7 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
     y[0]=(-(1.0+h*W[tp+1])*y[2]+2.0*(1.0-5.0*h*W[tp])*y[1])/(1.0+h*W[tp-1])
         
     #print('right', y[0], y[1], y[2])   
-    right=(y[2]-y[0])/y[1]
+    right=(y[0]-y[2])/y[1]
     
     #f= open("test.txt", "w") 
     #i=0
@@ -298,8 +308,8 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
     #    i += 1
     #f.close()
 
-    #Defining the "differntiability" function for the specific (E,l)
-    cont=lef+right
+    #Defining the "differentiability" function for the specific (E,l)
+    cont=lef-right
     #print(cont, lef, right, E)
     return cont
             
@@ -353,7 +363,7 @@ def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it,
     elif config.bc=="dirichlet":
         P_rig[-1]=0.0
         P_rig[-2]=np.exp(-ma.sqrt(-2.0*E)*np.exp(xgrid[N-1])+0.5*xgrid[N-1])
-    print('1', P_rig[-1]) 
+    #print('1', P_rig[-1]) 
     i=int(N-tp-2)
     while (i>=0):
         P_rig[i]=(-(1.0+h*W[i+2])*P_rig[i+2]+2.0*(1.0-5.0*h*W[i+1])*P_rig[i+1])/(1.0+h*W[i])
@@ -363,7 +373,7 @@ def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it,
     h_l=P_lef[tp]
     h_r=P_rig[0]
     P_rig=(h_l/h_r)*P_rig
-    print('2',P_rig[-1])
+    #print('2',P_rig[-1])
 
     i=int(0)
     while (i<N):
@@ -376,7 +386,7 @@ def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it,
     P = np.concatenate((P_lef,P_rig[2:]))
     #print(np.shape(P_lef), np.shape(P_rig))
     
-    print('3', P[-1])
+    #print('3', P[-1])
     #P_norm=mathtools.normalize_orbs(P,xgrid)
     P_norm = P
     return P_norm

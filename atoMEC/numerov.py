@@ -298,7 +298,7 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
     y[0]=(-(1.0+h*W[tp+1])*y[2]+2.0*(1.0-5.0*h*W[tp])*y[1])/(1.0+h*W[tp-1])
         
     #print('right', y[0], y[1], y[2])   
-    right=(y[0]-y[2])/y[1]
+    right=(y[2]-y[0])/y[1]
     
     #f= open("test.txt", "w") 
     #i=0
@@ -309,7 +309,7 @@ def Shootsolve(v, xgrid, l, E): #Solves the KS equation by the shooting method f
     #f.close()
 
     #Defining the "differentiability" function for the specific (E,l)
-    cont=lef-right
+    cont=lef+right
     #print(cont, lef, right, E)
     return cont
             
@@ -328,13 +328,16 @@ def Shootwrite(v, xgrid, l, E): #Solves the KS equation for P_nl, normalizes it,
     
     W=-2.0*np.exp(2.0*xgrid)*(v-E)-(l+0.5)**2  
     #tp=int(ma.floor(5*N/6))
-    i=0
+    i=0; tp=int(0)
     while i<N:
         if v[i] > (E+v[N-1]):
             tp=i-1
             break
         i += 1
     
+    if tp == 0:
+        print("Write-tp=0")
+        tp=int(ma.floor(5*N/6))
     #allocating 2 arrays - one for (ii) and one for (iii):
     P_lef=np.zeros(tp+1, dtype=np.float64)
     P_rig=np.zeros(N-tp+1, dtype=np.float64)

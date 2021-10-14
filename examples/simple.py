@@ -7,22 +7,22 @@ from atoMEC import Atom, models, config
 
 config.numcores = 0
 
-atom_species = "He"  # helium
+atom_species = "Be"  # helium
 r_s = 3.0  # Wigner-Seitz radius
 temperature = 0.01  # temp in hartree
 
 # initialize the atom object
-He = Atom(atom_species, radius=r_s, temp=temperature)
+Be = Atom(atom_species, radius=r_s, temp=temperature)
 
 # initialize the model
-model = models.ISModel(He, bc="neumann")
+model = models.ISModel(Be, bc="dirichlet")
 
 # compute the total energy
 # define the number of levels to scan for
 # note that nmax should be much greater than the actual levels interested in
 # and should be tested for convergence
-nmax = 20
+nmax = 3
 lmax = 2
-output = model.CalcEnergy(nmax, lmax, grid_params={"ngrid": 1000})
+output = model.CalcEnergy(nmax, lmax, grid_params={"ngrid": 1000}, verbosity=1)
 
 print("Total free energy = ", output["energy"].F_tot)

@@ -147,7 +147,7 @@ class Orbitals:
         v[:] = potential
 
         # solve the KS equations
-       # self._eigfuncs, self._eigvals = numerov.matrix_solve(v, self._xgrid)
+      #  self._eigfuncs, self._eigvals = numerov.matrix_solve(v, self._xgrid)
         self._eigfuncs, self._eigvals = numerov.Eig_shoot_search(v, self._xgrid)
 
         # compute the lbound array
